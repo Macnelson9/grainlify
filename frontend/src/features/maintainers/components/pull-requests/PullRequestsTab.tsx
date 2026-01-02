@@ -5,7 +5,7 @@ import { PRFilterType } from '../../types';
 import { PRRow } from './PRRow';
 import { PRFilterDropdown } from './PRFilterDropdown';
 import { getMyProjects, getProjectPRs } from '../../../../shared/api/client';
-import { SkeletonLoader } from '../../../../shared/components/SkeletonLoader';
+import { PRRowSkeleton } from '../../../../shared/components/PRRowSkeleton';
 
 interface PRFromAPI {
   github_pr_id: number;
@@ -230,7 +230,7 @@ export function PullRequestsTab({ selectedProjects, onRefresh }: PullRequestsTab
         {isLoading ? (
           <div className="space-y-4">
             {[...Array(8)].map((_, idx) => (
-              <SkeletonLoader key={idx} className="h-[100px] w-full" />
+              <PRRowSkeleton key={idx} />
             ))}
           </div>
         ) : error ? (

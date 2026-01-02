@@ -6,7 +6,7 @@ import { EmptyIssueState } from './EmptyIssueState';
 import { IssueCard } from '../../../../shared/components/ui/IssueCard';
 import { getProjectIssues } from '../../../../shared/api/client';
 import { formatDistanceToNow } from 'date-fns';
-import { SkeletonLoader } from '../../../../shared/components/SkeletonLoader';
+import { IssueCardSkeleton } from '../../../../shared/components/IssueCardSkeleton';
 
 interface Project {
   id: string;
@@ -275,7 +275,7 @@ export function IssuesTab({ onNavigate, selectedProjects, onRefresh }: IssuesTab
           {isLoadingIssues ? (
             <div className="space-y-3">
               {[...Array(8)].map((_, idx) => (
-                <SkeletonLoader key={idx} className="h-[120px] w-full" />
+                <IssueCardSkeleton key={idx} />
               ))}
             </div>
           ) : issuesError ? (

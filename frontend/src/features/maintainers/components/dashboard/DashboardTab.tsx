@@ -6,7 +6,8 @@ import { ActivityItem } from './ActivityItem';
 import { ApplicationsChart } from './ApplicationsChart';
 import { StatCard, Activity, ChartDataPoint } from '../../types';
 import { getProjectIssues, getProjectPRs } from '../../../../shared/api/client';
-import { SkeletonLoader } from '../../../../shared/components/SkeletonLoader';
+import { ActivityItemSkeleton } from '../../../../shared/components/ActivityItemSkeleton';
+import { ChartSkeleton } from '../../../../shared/components/ChartSkeleton';
 
 interface Project {
   id: string;
@@ -318,7 +319,7 @@ export function DashboardTab({ selectedProjects, onRefresh }: DashboardTabProps)
             {isLoading ? (
               <div className="space-y-3">
                 {[...Array(5)].map((_, idx) => (
-                  <SkeletonLoader key={idx} className="h-[80px] w-full" />
+                  <ActivityItemSkeleton key={idx} />
                 ))}
               </div>
             ) : (
@@ -344,7 +345,7 @@ export function DashboardTab({ selectedProjects, onRefresh }: DashboardTabProps)
             : 'bg-white/[0.12] border-white/20'
         }`}>
           {isLoading ? (
-            <SkeletonLoader className="h-[300px] w-full" />
+            <ChartSkeleton />
           ) : (
             <ApplicationsChart data={chartData} />
           )}
