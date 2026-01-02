@@ -87,9 +87,34 @@ export function PRRow({ pr }: PRRowProps) {
       {/* Author Info */}
       <div>
         <div className="flex items-center gap-2 mb-2">
-          <div className="w-7 h-7 rounded-full bg-gradient-to-br from-[#c9983a] to-[#d4af37] flex items-center justify-center">
-            <User className="w-4 h-4 text-white" />
-          </div>
+          <img
+            src={`https://github.com/${pr.author.name}.png?size=28`}
+            alt={pr.author.name}
+            className="w-7 h-7 rounded-full border border-[#c9983a]/40"
+            onError={(e) => {
+              // Fallback to icon if image fails to load
+              const target = e.target as HTMLImageElement;
+              target.style.display = 'none';
+              const parent = target.parentElement;
+              if (parent) {
+                const fallback = document.createElement('div');
+                fallback.className = 'w-7 h-7 rounded-full bg-gradient-to-br from-[#c9983a] to-[#d4af37] flex items-center justify-center';
+                const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+                svg.setAttribute('class', 'w-4 h-4 text-white');
+                svg.setAttribute('fill', 'none');
+                svg.setAttribute('stroke', 'currentColor');
+                svg.setAttribute('viewBox', '0 0 24 24');
+                const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                path.setAttribute('stroke-linecap', 'round');
+                path.setAttribute('stroke-linejoin', 'round');
+                path.setAttribute('stroke-width', '2');
+                path.setAttribute('d', 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z');
+                svg.appendChild(path);
+                fallback.appendChild(svg);
+                parent.insertBefore(fallback, target);
+              }
+            }}
+          />
           <span className={`text-[13px] font-semibold ${
             theme === 'dark' ? 'text-[#e8dfd0]' : 'text-[#2d2820]'
           }`}>{pr.author.name}</span>

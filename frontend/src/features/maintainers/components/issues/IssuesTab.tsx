@@ -19,6 +19,16 @@ interface IssuesTabProps {
   onRefresh?: () => void;
 }
 
+interface CommentFromAPI {
+  id: number;
+  body: string;
+  user: {
+    login: string;
+  };
+  created_at: string;
+  updated_at: string;
+}
+
 interface IssueFromAPI {
   github_issue_id: number;
   number: number;
@@ -29,7 +39,7 @@ interface IssueFromAPI {
   assignees: any[];
   labels: any[];
   comments_count: number;
-  comments: any[];
+  comments: CommentFromAPI[];
   url: string;
   updated_at: string | null;
   last_seen_at: string;
@@ -39,6 +49,8 @@ export function IssuesTab({ onNavigate, selectedProjects, onRefresh }: IssuesTab
   const { theme } = useTheme();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedIssue, setSelectedIssue] = useState<Issue | null>(null);
+  const [selectedIssueFromAPI, setSelectedIssueFromAPI] = useState<IssueFromAPI | null>(null);
+  const [failedAvatars, setFailedAvatars] = useState<Set<string>>(new Set());
   const [issueDetailTab, setIssueDetailTab] = useState<'applications' | 'discussions'>('applications');
   const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
   const [selectedFilters, setSelectedFilters] = useState({
@@ -157,40 +169,55 @@ export function IssuesTab({ onNavigate, selectedProjects, onRefresh }: IssuesTab
     onNavigate('profile');
   };
 
-  const getApplicationData = (issue: Issue | null) => {
-    if (!issue) return null;
+  // Helper function to get GitHub avatar URL
+  const getGitHubAvatar = (login: string, size: number = 40): string => {
+    return `https://github.com/${login}.png?size=${size}`;
+  };
+
+  const getApplicationData = (issue: Issue | null, issueFromAPI: IssueFromAPI | null) => {
+    if (!issue || !issueFromAPI) return null;
+    
+    // Get all comments from the API
+    const comments = issueFromAPI.comments || [];
+    const issueAuthor = issueFromAPI.author_login;
+    
+    // Applications are comments from users other than the issue author
+    // (or all comments if we want to show all as potential applications)
+    const applications = comments
+      .filter(comment => comment.user.login !== issueAuthor)
+      .map((comment, index) => ({
+        id: comment.id.toString(),
+        author: {
+          name: comment.user.login,
+          avatar: getGitHubAvatar(comment.user.login, 48),
+        },
+        message: comment.body,
+        timeAgo: formatTimeAgo(comment.created_at),
+        isAssigned: issue.applicationStatus === 'assigned',
+        // These would need to come from user profile API in the future
+        contributions: 0,
+        rewards: 0,
+        projectsContributed: 0,
+        projectsLead: 0,
+      }));
+    
+    // Discussions are all comments (including from the author)
+    const discussions = comments.map((comment) => ({
+      id: comment.id.toString(),
+      user: comment.user.login,
+      timeAgo: formatTimeAgo(comment.created_at),
+      content: comment.body,
+      isAuthor: comment.user.login === issueAuthor,
+      appliedForContribution: comment.user.login !== issueAuthor,
+    }));
     
     return {
-      applications: [
-        {
-          id: '1',
-          author: { 
-            name: issue.applicant?.name || 'Unknown', 
-            avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&h=100&fit=crop',
-          },
-          message: issue.applicant?.message || 'Hi, I can handle this task. Kindly assign.',
-          timeAgo: issue.applicant?.appliedDate || '3 months ago',
-          isAssigned: issue.applicationStatus === 'assigned',
-          contributions: issue.applicant?.profileStats?.contributions || 165,
-          rewards: issue.applicant?.profileStats?.rewards || 4,
-          projectsContributed: issue.applicant?.profileStats?.contributorProjects || 48,
-          projectsLead: issue.applicant?.profileStats?.leadProjects || 3,
-        },
-      ],
-      discussions: issue.discussions || [
-        {
-          id: '1',
-          user: issue.applicant?.name || 'Unknown',
-          timeAgo: issue.applicant?.appliedDate || '3 months ago',
-          content: issue.applicant?.message || 'Hi, I can handle this task. Kindly assign.',
-          isAuthor: false,
-          appliedForContribution: true,
-        },
-      ],
+      applications,
+      discussions,
     };
   };
 
-  const applicationData = getApplicationData(selectedIssue);
+  const applicationData = getApplicationData(selectedIssue, selectedIssueFromAPI);
   const isDark = theme === 'dark';
   const appliedFilterCount = selectedFilters.status.length + selectedFilters.applicants.length + selectedFilters.assignee.length + selectedFilters.stale.length + selectedFilters.categories.length + selectedFilters.languages.length + selectedFilters.labels.length;
 
@@ -348,7 +375,7 @@ export function IssuesTab({ onNavigate, selectedProjects, onRefresh }: IssuesTab
                     tags: issue.labels?.map((l: any) => l.name || l) || [],
                     applicants: issue.comments_count || 0,
                     comments: issue.comments_count || 0,
-                    applicant: null,
+                    applicant: undefined,
                     applicationStatus: 'pending',
                     discussions: [],
                     url: issue.url,
@@ -369,7 +396,10 @@ export function IssuesTab({ onNavigate, selectedProjects, onRefresh }: IssuesTab
                       timeAgo={timeAgoFormatted}
                       tags={issue.labels?.map((l: any) => l.name || l) || []}
                       isSelected={selectedIssue?.id === issue.github_issue_id.toString()}
-                      onClick={() => setSelectedIssue(issueForCard)}
+                      onClick={() => {
+                        setSelectedIssue(issueForCard);
+                        setSelectedIssueFromAPI(issue);
+                      }}
                       showTags={true}
                     />
                   );
@@ -496,7 +526,7 @@ export function IssuesTab({ onNavigate, selectedProjects, onRefresh }: IssuesTab
             {/* Content */}
             {issueDetailTab === 'applications' && (
               <>
-                {selectedIssue.applicationStatus === 'none' && (
+                {(!applicationData || applicationData.applications.length === 0) && (
                   <div className="text-center py-16">
                     <div className="relative mx-auto mb-6 w-20 h-20">
                       <div className="absolute inset-0 rounded-full bg-gradient-to-br from-[#c9983a]/20 to-[#d4af37]/10 blur-xl" />
@@ -519,7 +549,7 @@ export function IssuesTab({ onNavigate, selectedProjects, onRefresh }: IssuesTab
                   </div>
                 )}
 
-                {(selectedIssue.applicationStatus === 'assigned' || selectedIssue.applicationStatus === 'pending') && applicationData && (
+                {applicationData && applicationData.applications.length > 0 && (
                   <div className="space-y-4">
                     {applicationData.applications.map((application) => {
                       const isExpanded = expandedApplications[application.id] || false;
@@ -537,11 +567,20 @@ export function IssuesTab({ onNavigate, selectedProjects, onRefresh }: IssuesTab
                             onClick={handleProfileClick}
                             className="flex items-center gap-3 hover:bg-white/10 -m-2 p-2 rounded-[12px] transition-all group/user"
                           >
-                            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-[#c9983a] to-[#d4af37] flex items-center justify-center shadow-[0_4px_12px_rgba(201,152,58,0.3)]">
-                              <span className="text-[16px] font-bold text-white">
-                                {application.author.name.substring(0, 2).toUpperCase()}
-                              </span>
-                            </div>
+                            {failedAvatars.has(application.author.avatar) ? (
+                              <div className="w-12 h-12 rounded-full bg-gradient-to-br from-[#c9983a] to-[#d4af37] flex items-center justify-center shadow-[0_4px_12px_rgba(201,152,58,0.3)]">
+                                <span className="text-[16px] font-bold text-white">
+                                  {application.author.name.substring(0, 2).toUpperCase()}
+                                </span>
+                              </div>
+                            ) : (
+                              <img
+                                src={application.author.avatar}
+                                alt={application.author.name}
+                                className="w-12 h-12 rounded-full border-2 border-[#c9983a]/30 shadow-[0_4px_12px_rgba(201,152,58,0.3)]"
+                                onError={() => setFailedAvatars(prev => new Set(prev).add(application.author.avatar))}
+                              />
+                            )}
                             <div className="text-left">
                               <h4 className={`text-[15px] font-bold transition-colors ${
                                 isDark ? 'text-[#e8dfd0]' : 'text-[#2d2820]'
@@ -711,11 +750,20 @@ export function IssuesTab({ onNavigate, selectedProjects, onRefresh }: IssuesTab
                       }`}
                     >
                       <div className="flex items-center gap-3 mb-3">
-                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#c9983a]/30 to-[#d4af37]/20 border border-[#c9983a]/40 flex items-center justify-center">
-                          <span className="text-[11px] font-bold text-[#c9983a]">
-                            {discussion.user.substring(0, 2).toUpperCase()}
-                          </span>
-                        </div>
+                        {failedAvatars.has(getGitHubAvatar(discussion.user, 32)) ? (
+                          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#c9983a]/30 to-[#d4af37]/20 border border-[#c9983a]/40 flex items-center justify-center">
+                            <span className="text-[11px] font-bold text-[#c9983a]">
+                              {discussion.user.substring(0, 2).toUpperCase()}
+                            </span>
+                          </div>
+                        ) : (
+                          <img
+                            src={getGitHubAvatar(discussion.user, 32)}
+                            alt={discussion.user}
+                            className="w-8 h-8 rounded-full border border-[#c9983a]/40"
+                            onError={() => setFailedAvatars(prev => new Set(prev).add(getGitHubAvatar(discussion.user, 32)))}
+                          />
+                        )}
                         <div>
                           <div className="flex items-center gap-2">
                             <span className={`text-[14px] font-bold transition-colors ${
