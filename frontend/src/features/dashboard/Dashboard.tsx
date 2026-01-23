@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   Search, Bell, Compass, Grid3x3, Calendar, 
@@ -31,6 +31,7 @@ import { IssueDetailPage } from './pages/IssueDetailPage';
 import { LeaderboardPage } from '../leaderboard/pages/LeaderboardPage';
 import { BlogPage } from '../blog/pages/BlogPage';
 import { SettingsPage } from '../settings/pages/SettingsPage';
+import { SettingsTabType } from '../settings/types';
 import { AdminPage } from '../admin/pages/AdminPage';
 import { SearchPage } from './pages/SearchPage';
 
@@ -488,7 +489,7 @@ export function Dashboard() {
                   />
                 )}
                 {currentPage === 'contributors' && <ContributorsPage />}
-                {currentPage === 'maintainers' && <MaintainersPage />}
+                {currentPage === 'maintainers' && <MaintainersPage onNavigate={handleNavigation} />}
                 {currentPage === 'profile' && (
                   <ProfilePage 
                     viewingUserId={viewingUserId}
