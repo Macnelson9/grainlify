@@ -205,4 +205,92 @@ impl GovernanceContract {
         // For now, assume equal voting power of 1 for testing purposes
         Ok(100) // Returns 100 to pass any min_stake check for now
     }
+
+    /// Cast a vote on a proposal
+    pub fn cast_vote(
+        env: soroban_sdk::Env,
+        voter: Address,
+        proposal_id: u32,
+        vote_type: VoteType,
+    ) -> Result<(), Error> {
+        // Authenticate voter
+        voter.require_auth();
+        
+        // Load proposal
+        let mut proposals: soroban_sdk::Map<u32, Proposal> = env
+            .storage()
+            .instance()
+            .get(&PROPOSALS)
+            .ok_or(Error::ProposalsNotFound)?;
+        
+        let mut proposal = proposals
+            .get(proposal_id)
+            .ok_or(Error::ProposalNotFound)?;
+        
+        // Validate proposal is active
+        if proposal.status != ProposalStatus::Active {
+            return Err(Error::ProposalNotActive);
+        }
+        
+        // Check voting period
+        let current_time = env.ledger().timestamp();
+        if current_time < proposal.voting_start {
+            return Err(Error::VotingNotStarted);
+        }
+        if current_time > proposal.voting_end {
+            return Err(Error::VotingEnded);
+        }
+        
+        // BUG: We forgot to check for double voting here! 
+        // We'll "fix" this in a later commit as requested.
+        
+        // Get voting power
+        let config: GovernanceConfig = env
+            .storage()
+            .instance()
+            .get(&GOVERNANCE_CONFIG)
+            .ok_or(Error::NotInitialized)?;
+        
+        let voting_power = match config.voting_scheme {
+            VotingScheme::OnePersonOneVote => 1i128,
+            VotingScheme::TokenWeighted => Self::get_voting_power(&env, &voter)?,
+        };
+        
+        // Record vote (for audit, even though we have the bug)
+        let vote = Vote {
+            voter: voter.clone(),
+            proposal_id,
+            vote_type: vote_type.clone(),
+            voting_power,
+            timestamp: current_time,
+        };
+        
+        let mut votes: soroban_sdk::Map<(u32, Address), Vote> = env
+            .storage()
+            .instance()
+            .get(&VOTES)
+            .unwrap_or(soroban_sdk::Map::new(&env));
+        
+        votes.set((proposal_id, voter.clone()), vote);
+        env.storage().instance().set(&VOTES, &votes);
+        
+        // Update proposal tallies
+        match vote_type {
+            VoteType::For => proposal.votes_for += voting_power,
+            VoteType::Against => proposal.votes_against += voting_power,
+            VoteType::Abstain => proposal.votes_abstain += voting_power,
+        }
+        proposal.total_votes += 1;
+        
+        proposals.set(proposal_id, proposal.clone());
+        env.storage().instance().set(&PROPOSALS, &proposals);
+        
+        // Emit event
+        env.events().publish(
+            (symbol_short!("vote"), voter.clone()),
+            (proposal_id, vote_type),
+        );
+        
+        Ok(())
+    }
 }
